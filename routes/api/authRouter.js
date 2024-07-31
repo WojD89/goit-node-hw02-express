@@ -3,6 +3,10 @@ const User = require("../../models/user.js");
 const jwt = require("jsonwebtoken");
 const Joi = require("joi");
 const authMiddleware = require("../../middleware/jwt.js");
+const gravatar = require('gravatar');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
 
 const router = express.Router();
 
@@ -15,6 +19,18 @@ const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
 });
+
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './tmp'); 
+  },
+  filename: function (req, file, cb) {
+    cb(null, `${req.user._id}_${Date.now()}${path.extname(file.originalname)}`); 
+  }
+});
+
+const upload = multer({ storage: storage });
 
 router.post("/signup", async (req, res, next) => {
   const { error } = signupSchema.validate(req.body);
@@ -30,11 +46,17 @@ router.post("/signup", async (req, res, next) => {
   try {
     const newUser = new User({ email, password });
     await newUser.setPassword(password);
+
+    const avatar = gravatar.url(email, { s: '250', d: 'retro' });
+
+    newUser.avatarURL = avatar; 
+
     await newUser.save();
     return res.status(201).json({
       user: {
         email: email,
         subscription: newUser.subscription,
+        avatarURL: avatar 
       },
     });
   } catch (e) {
@@ -105,6 +127,31 @@ router.get("/current", authMiddleware, async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+});
+
+router.patch("/avatars", authMiddleware, upload.single('avatar'), async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const Jimp = require('jimp');
+    const { filename } = req.file;
+
+    const image = await Jimp.read(`./tmp/${filename}`);
+    await image.resize(250, 250).write(`./tmp/${filename}`);
+
+    const avatarPath = path.join(__dirname, '..', 'public', 'avatars', filename);
+    await fs.rename(`./tmp/${filename}`, avatarPath);
+
+    const user = await User.findByIdAndUpdate(userId, { avatarURL: `/avatars/${filename}` }, { new: true });
+
+    res.status(200).json({ avatarURL: user.avatarURL });
+  } catch (error) {
+    next(error);
   }
 });
 
