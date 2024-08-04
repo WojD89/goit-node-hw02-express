@@ -1,33 +1,47 @@
-const passport = require("passport");
+const Contact = require("../../models/contacts/contacts.js");
 
-async function authMiddleware(req, res, next) {
-  try {
-    passport.authenticate(
-      "jwt",
-      {
-        session: false,
-      },
-      (err, user) => {
-        if (!user || err) {
-          return res.status(401).json({ message: "Not authorized" });
-        }
-        if (!user.token) {
-          return res
-            .status(401)
-            .json({ message: "Token expired or invalidated" });
-        }
-        if (!user._id) {
-          return res.status(401).json({ message: "User not found." });
-        }
-        res.locals.user = user;
-        req.user = user;
+const fetchContacts = (userId, page, limit, favorite) => {
+    const skip = (page - 1) * limit;
+    let query = { owner: userId };
+    if (favorite !== undefined) {
+        query.favorite = favorite;
+    }
+    return Contact.find(query).skip(skip).limit(limit);
+};
 
-        next();
-      }
-    )(req, res, next);
-  } catch (err) {
-    next(err);
-  }
-}
+const fetchContact = (userId, id) => {
+    return Contact.findOne({ _id: id, owner: userId });
+};
 
-module.exports = authMiddleware;
+const createNewContact = async (userId, contactData) => {
+    const newContact = await Contact.create({ ...contactData, owner: userId });
+    console.log("Contact created successfully:", newContact);
+    return newContact;
+};
+
+const deleteContact = async (userId, id) => {
+    return Contact.findOneAndDelete({ _id: id, owner: userId });
+};
+
+const updateContact = async (userId, id, updatedData) => {
+    return Contact.findOneAndUpdate({ _id: id, owner: userId }, updatedData, {
+        new: true,
+    });
+};
+
+const updateStatusContact = async (userId, id, favorite) => {
+    return Contact.findOneAndUpdate(
+        { _id: id, owner: userId },
+        { favorite },
+        { new: true }
+    );
+};
+
+module.exports = {
+    fetchContacts,
+    fetchContact,
+    createNewContact,
+    deleteContact,
+    updateContact,
+    updateStatusContact,
+};
