@@ -22,7 +22,15 @@ const userSchema = new mongoose.Schema({
   },
   avatarURL: {
     type: String,
-  }
+  },
+  verify: {
+    type: Boolean,
+    default: false,
+  },
+  verificationToken: {
+    type: String,
+    required: [true, 'Verify token is required'],
+  },
 });
 
 userSchema.methods.setPassword = async function (password) {
@@ -33,6 +41,8 @@ userSchema.methods.validatePassword = function (password) {
   return bCrypt.compare(password, this.password);
 };
 
-const User = mongoose.model("user", userSchema, "users");
+function getUserModel() {
+  return mongoose.model("user", userSchema, "users");
+}
 
-module.exports = User;
+module.exports = getUserModel;
