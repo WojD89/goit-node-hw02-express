@@ -1,40 +1,33 @@
-const Contact = require("../models/contact");
-const fetchContacts = (userId) => {
-  return Contact.find({ owner: userId });
-};
+const passport = require("passport");
 
-const fetchContact = (userId, id) => {
-  return Contact.findOne({ _id: id, owner: userId });
-};
+async function authMiddleware(req, res, next) {
+  try {
+    passport.authenticate(
+      "jwt",
+      {
+        session: false,
+      },
+      (err, user) => {
+        if (!user || err) {
+          return res.status(401).json({ message: "Not authorized" });
+        }
+        if (!user.token) {
+          return res
+            .status(401)
+            .json({ message: "Token expired or invalidated" });
+        }
+        if (!user._id) {
+          return res.status(401).json({ message: "User not found." });
+        }
+        res.locals.user = user;
+        req.user = user;
 
-const insertContact = (userId, { name, email, phone, favorite }) => {
-  return Contact.create({ name, email, phone, favorite, owner: userId });
-};
+        next();
+      }
+    )(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+}
 
-const updadeContact = async (userId, { id, toUpdate, upsert = false }) => {
-  return Contact.findOneAndUpdate(
-    { _id: id, owner: userId },
-    { $set: toUpdate },
-    { new: true, runValidators: true, strict: "throw", upsert }
-  );
-};
-
-const updateStatusContact = async (userId, { id, favorite }) => {
-  return Contact.findOneAndUpdate(
-    { _id: id, owner: userId },
-    { favorite },
-    { new: true }
-  );
-};
-
-const removeContact = (userId, id) =>
-  Contact.findOneAndDelete({ _id: id, owner: userId });
-
-module.exports = {
-  fetchContacts,
-  fetchContact,
-  insertContact,
-  updadeContact,
-  removeContact,
-  updateStatusContact,
-};
+module.exports = authMiddleware;
